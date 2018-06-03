@@ -41,32 +41,6 @@ int FindLaneId(const interface::geometry::Point2D& testpoint, const interface::m
 		l1=lane.left_bound().boundary().point(lsize-1);
 		r0=lane.right_bound().boundary().point(0);
 		r1=lane.right_bound().boundary().point(rsize-1);
-		// vector<interface::geometry::Point3D> pvec;
-		// pvec.push_back(l0);
-		// pvec.push_back(l1);
-		// pvec.push_back(r0);
-		// pvec.push_back(r1);
-		// int nCross=0;
-		// for(int i=0;i<4;++i)
-		// {
-		// 	interface::geometry::Point3D p1,p2;
-		// 	p1=pvec[i];
-		// 	p2=pvec[(i+1)%4];
-		// 	if(p1.y()==p2.y())
-		// 		continue;
-		// 	if(testpoint.y()<min(p1.y(),p2.y()))
-		// 		continue;
-		// 	if(testpoint.y()>max(p1.y(),p2.y()))
-		// 		continue;
-		// 	double xx=(testpoint.y()-p1.y())*(p2.x()-p1.x())/(p2.y()-p1.y())+p1.x();
-		// 	if(xx>testpoint.x())
-		// 		nCross++;
-		// }
-		// if(nCross%2==1)
-		// {
-		// 	return count;
-		// }
-		// ++count;
 
 		//use simple square box to decide
 		double xmin=min(min(l0.x(),l1.x()),min(r0.x(),r1.x()));
@@ -213,8 +187,8 @@ void FindRoute(const string& mapfilename, const interface::geometry::Vector3d& s
 			cout<<"nextid: "<<nextid<<endl;
 			interface::map::Lane templane=FindCorrectLane(nextid,mapdata);
 			start_id=nextid;
-			start_point.set_x(templane.central_line().point(0).x());
-			start_point.set_y(templane.central_line().point(0).y());
+			start_point.set_x(templane.central_line().point(1).x());
+			start_point.set_y(templane.central_line().point(1).y());
 		}
 	}
 
@@ -269,10 +243,10 @@ void FindRoute(const string& mapfilename, const interface::geometry::Vector3d& s
 			break;
 		routeid.push_back(record[last]);
 	}
-	// for(int i=0;i<routeid.size();++i)
-	// {
-	// 	cout<<routeid[i]<<endl;
-	// }
+	for(int i=0;i<routeid.size();++i)
+	{
+		cout<<routeid[i]<<endl;
+	}
 	//Add route points(lanes' central line points) to route
 
 	interface::geometry::Point2D last_add_route_point;

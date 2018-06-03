@@ -57,7 +57,7 @@ struct Params
 		preview_length_th_max=10;
 		preview_length_th_min=5;
 
-		theta_err_pid[0]=18;
+		theta_err_pid[0]=16.5;
 		theta_err_pid[1]=0;
 		theta_err_pid[2]=2;
 		

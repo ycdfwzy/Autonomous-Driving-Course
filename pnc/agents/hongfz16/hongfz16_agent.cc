@@ -36,7 +36,6 @@ interface::control::ControlCommand hongfz16::SimpleVehicleAgent::RunOneIteration
 	if(is_reach_dest(agent_status) && is_zero(sinfo.speed))
 	{
 		car_info.ready=true;
-		init_param(agent_status);
 	}
 	if(agent_status.route_status().is_new_request())
 	{
