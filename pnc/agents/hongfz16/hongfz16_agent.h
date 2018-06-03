@@ -65,10 +65,10 @@ struct Params
 		ct_err_pid[1]=0;
 		ct_err_pid[2]=0;
 
-		speed_pd[0]=0.15;
-		speed_pd[1]=-0.5;
+		speed_pd[0]=0.4;
+		speed_pd[1]=0;
 
-		max_speed=10;
+		max_speed=12;
 	}
 };
 

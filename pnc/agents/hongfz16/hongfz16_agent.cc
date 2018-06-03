@@ -36,6 +36,7 @@ interface::control::ControlCommand hongfz16::SimpleVehicleAgent::RunOneIteration
 	if(is_reach_dest(agent_status) && is_zero(sinfo.speed))
 	{
 		car_info.ready=true;
+		init_param(agent_status);
 	}
 	if(agent_status.route_status().is_new_request())
 	{
@@ -48,7 +49,7 @@ interface::control::ControlCommand hongfz16::SimpleVehicleAgent::RunOneIteration
 	}
 
 	command=control_vehicle(agent_status);
-	
+
 #ifdef _DEBUG
 	register_debug_info();
 #endif
@@ -99,10 +100,10 @@ inline void hongfz16::SimpleVehicleAgent::new_route_init(const interface::agent:
   	car_info.curr_route.routes.push_back(pair<Point2d,double>(p,0));
   }
 
-	// for(int i=0;i<car_info.curr_route.routes.size();++i)
-	// {
-	// 	cout << car_info.curr_route.routes[i].first.x() << "," << car_info.curr_route.routes[i].first.y() << endl;
-	// }
+	for(int i=0;i<car_info.curr_route.routes.size();++i)
+	{
+		cout << car_info.curr_route.routes[i].first.x() << "," << car_info.curr_route.routes[i].first.y() << endl;
+	}
 }
 
 inline void hongfz16::SimpleVehicleAgent::init_param(const interface::agent::AgentStatus& agent_status)
@@ -120,8 +121,8 @@ inline void hongfz16::SimpleVehicleAgent::init_param(const interface::agent::Age
 
 inline void hongfz16::SimpleVehicleAgent::my_init(const interface::agent::AgentStatus& agent_status)
 {
-	new_route_init(agent_status);
 	init_param(agent_status);
+	new_route_init(agent_status);
 }
 
 inline bool hongfz16::SimpleVehicleAgent::is_reach_dest(const interface::agent::AgentStatus& agent_status)
@@ -207,8 +208,17 @@ inline double hongfz16::SimpleVehicleAgent::speed_control(const interface::agent
 		// delt=0;
 	// car_info.last_delta_speed=prop;
 	// return car_param.speed_pd[0] * prop + car_param.speed_pd[1] * delt;
-	double delta=target_speed-car_info.last_delta_speed;
+	double delta=target_speed - car_info.last_delta_speed;
+	if(car_info.last_delta_speed)
+		delta=0;
 	car_info.last_delta_speed=target_speed;
+
+	Point2d cp;
+	cp.set_x(agent_status.vehicle_status().position().x());
+	cp.set_y(agent_status.vehicle_status().position().y());
+	if(calc_dist(cp,car_info.dest)<1)
+		return -1;
+
 	return car_param.speed_pd[0] * target_speed + car_param.speed_pd[1] * delta;
 }
 
@@ -235,7 +245,13 @@ inline double hongfz16::SimpleVehicleAgent::plan_next_speed(int destid,double pl
 	Point2d cp;
 	cp.set_x(agent_status.vehicle_status().position().x());
 	cp.set_y(agent_status.vehicle_status().position().y());
-	double dist=calc_dist(cp,car_info.curr_route.routes[destid].first);
+	double dist=calc_dist(cp,car_info.curr_route.routes[car_info.refer_point_id].first);
+	for(int i=car_info.refer_point_id;i<=destid-1;++i)
+	{
+		dist+=calc_dist(car_info.curr_route.routes[i].first,car_info.curr_route.routes[i+1].first);
+	}
+	if(dist>=4)
+		dist-=3.8;
 	SpeedInfo sinfo=get_curr_speed(agent_status);
 	double vc=sinfo.speed;
 	double vx=plan_speed;
@@ -250,14 +266,15 @@ inline double hongfz16::SimpleVehicleAgent::plan_next_speed(int destid,double pl
 	// 	return vc-sqrt(2*refer_point_dist*(-a));
 	// }
 	// return refer_point_dist*(vx-vc)/dist+vc;
-	PublishVariable("Required acc",to_string(a));
+	// PublishVariable("Required acc",to_string(a));
+	// cout<<"a: "<<a<<endl;
 	return a;
 }
 
 inline double hongfz16::SimpleVehicleAgent::pedestrain_plan_speed(double dist)
 {
-	double min_th=1;
-	double max_th=3;
+	double min_th=2;
+	double max_th=3.5;
 	if(dist<min_th)
 		return 0;
 	if(dist>max_th)
@@ -275,9 +292,7 @@ inline void hongfz16::SimpleVehicleAgent::speed_planning(const interface::agent:
 	// 	}
 	// }
 
-	double next_speed=car_param.max_speed;
-
-	next_speed=plan_next_speed(car_info.refer_point_id,next_speed,agent_status);
+	double next_acc=plan_next_speed(car_info.refer_point_id+5,car_param.max_speed,agent_status);
 
 	for(const Obstacle& ob:agent_status.perception_status().obstacle())
 	{
@@ -294,28 +309,42 @@ inline void hongfz16::SimpleVehicleAgent::speed_planning(const interface::agent:
 		pair<double,int> dist_info=find_dist_to_route(center);
 		if(dist_info.second==-1)
 			continue;
-		if(dist_info.second - car_info.refer_point_id > 10)
+		if(dist_info.second - car_info.refer_point_id > 18)
 			continue;
 		if(dist_info.second - car_info.refer_point_id > 2)
 			dist_info.second-=2;
+
 		double desired_speed=pedestrain_plan_speed(dist_info.first);
-		PublishVariable("desired_speed",to_string(desired_speed));
-		PublishVariable("desired_id",to_string(dist_info.second));
-		double refer_point_speed=plan_next_speed(dist_info.second,desired_speed,agent_status);
-		PublishVariable("refer_point_speed",to_string(refer_point_speed));
-		if(refer_point_speed<next_speed)
-			next_speed=refer_point_speed;
+		// PublishVariable("desired_speed",to_string(desired_speed));
+		// PublishVariable("desired_id",to_string(dist_info.second));
+		double refer_point_acc=plan_next_speed(dist_info.second,desired_speed,agent_status);
+		// PublishVariable("ref(er_point_speed",to_string(refer_point_speed));
+		// 	if(abs(refer_point_acc)>abs(next_acc))
+		// 		next_acc=refer_point_acc;
+		// else
+		// 	if(refer_point_acc < next_acc)
+		// 		next_acc=refer_point_acc;
+
+		if(refer_point_acc<next_acc)
+			next_acc=refer_point_acc;
 	}
 
 	if(car_info.curr_route.routes.size()-1-car_info.refer_point_id<10)
 	{
-		double refer_point_speed=plan_next_speed(car_info.curr_route.routes.size()-1,0,agent_status);
-		if(refer_point_speed<next_speed)
-			next_speed=refer_point_speed;
-	}
-	car_info.curr_route.routes[car_info.refer_point_id].second=next_speed;
+		double refer_point_acc=plan_next_speed(car_info.curr_route.routes.size()-1,0,agent_status);
+		// if(refer_point_acc*next_acc > 0)
+		// 	if(abs(refer_point_acc)>abs(next_acc))
+		// 		next_acc=refer_point_acc;
+		// else
+		// 	if(refer_point_acc < next_acc)
+		// 		next_acc=refer_point_acc;
 
-	PublishVariable("refer_point_plan_speed",to_string(car_info.curr_route.routes[car_info.refer_point_id].second));
+		if(refer_point_acc<next_acc)
+			next_acc=refer_point_acc;
+	}
+	car_info.curr_route.routes[car_info.refer_point_id].second=next_acc;
+
+	PublishVariable("refer_point_plan_acc",to_string(car_info.curr_route.routes[car_info.refer_point_id].second));
 }
 
 inline double hongfz16::SimpleVehicleAgent::get_preview_length(double cspeed)
@@ -333,6 +362,7 @@ inline Err hongfz16::SimpleVehicleAgent::get_err(const interface::agent::AgentSt
 {
 	Err err;
 	Point2d preview_point;
+	PublishVariable("New refer point",to_string(car_info.refer_point_id));
 	double preview_length=get_preview_length(sinfo.speed);
 	preview_point.set_x(agent_status.vehicle_status().position().x()+preview_length*cos(sinfo.theta));
 	preview_point.set_y(agent_status.vehicle_status().position().y()+preview_length*sin(sinfo.theta));
