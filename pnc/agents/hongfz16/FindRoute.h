@@ -94,12 +94,12 @@ int findclosestid(interface::geometry::Point2D& p,const interface::map::Lane& la
 }
 
 //inputfilename is the proto file containing starting and ending point
-void FindRoute(const string& mapfilename, const interface::geometry::Vector3d& start3d, const interface::geometry::Point3D& ene3d, interface::route::Route& route)
+void FindRoute(const interface::map::Map& mapdata, const interface::geometry::Vector3d& start3d, const interface::geometry::Point3D& ene3d, interface::route::Route& route)
 {
 	//Read all the information
-	interface::map::Map mapdata;
+	// interface::map::Map mapdata;
 
-	CHECK(file::ReadFileToProto(mapfilename, &mapdata));
+	// CHECK(file::ReadFileToProto(mapfilename, &mapdata));
 	interface::geometry::Point2D start_point,end_point;
 	start_point.set_x(start3d.x());
 	start_point.set_y(start3d.y());
@@ -243,10 +243,10 @@ void FindRoute(const string& mapfilename, const interface::geometry::Vector3d& s
 			break;
 		routeid.push_back(record[last]);
 	}
-	for(int i=0;i<routeid.size();++i)
-	{
-		cout<<routeid[i]<<endl;
-	}
+	// for(int i=0;i<routeid.size();++i)
+	// {
+	// 	cout<<routeid[i]<<endl;
+	// }
 	//Add route points(lanes' central line points) to route
 
 	interface::geometry::Point2D last_add_route_point;

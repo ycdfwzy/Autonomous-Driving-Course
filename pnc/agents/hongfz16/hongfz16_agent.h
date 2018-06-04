@@ -36,6 +36,7 @@ typedef interface::control::ControlCommand Command;
 typedef interface::perception::PerceptionObstacle Obstacle;
 typedef interface::perception::PerceptionTrafficLightStatus AllTrafficLight;
 typedef interface::perception::SingleTrafficLightStatus TrafficLight;
+typedef interface::map::Lane Lane;
 
 struct Params
 {
@@ -52,12 +53,12 @@ struct Params
 	Params()
 	{
 		kp=1;
-		preview_length_max=2;
+		preview_length_max=1.5;
 		preview_length_min=0;
 		preview_length_th_max=10;
 		preview_length_th_min=5;
 
-		theta_err_pid[0]=16.5;
+		theta_err_pid[0]=16;
 		theta_err_pid[1]=0;
 		theta_err_pid[2]=2;
 		
@@ -68,7 +69,7 @@ struct Params
 		speed_pd[0]=0.4;
 		speed_pd[1]=0;
 
-		max_speed=12;
+		max_speed=14;
 	}
 };
 
@@ -99,6 +100,9 @@ struct CarInfo
 	Err last_err;
 	Err int_err;
 	double last_delta_speed;
+	Point2d road_end_point;
+	int curr_road_id;
+	double last_dist_to_end;
 };
 
 class SimpleVehicleAgent : public simulation::VehicleAgent {
@@ -147,9 +151,15 @@ private:
 
 	inline pair<double,int> find_dist_to_route(Point2d& p);
 
+	// inline pair<double,int> accurate_find_dist_to_route(Point2D& p, double head);
+
 	inline double plan_next_speed(int destid,double plan_speed,const interface::agent::AgentStatus& agent_status);
 	
-	inline double pedestrain_plan_speed(double dist);
+	inline double pedestrain_plan_speed(pair<double,int>& dist_info);
+
+	inline double car_plan_speed(pair<double,int>& dist_info);
+
+	inline void update_road_end_point(const interface::agent::AgentStatus& agent_status);
 
 private:
 	//PLEASE CHANGE THE FILEPREFIX TO YOUR WORKING PATH BEFORE YOU RUN THIS CODE
@@ -158,6 +168,8 @@ private:
 	CarInfo car_info;
 
 	Params car_param;
+	
+	interface::map::Map mapdata;
 };
 }
 
