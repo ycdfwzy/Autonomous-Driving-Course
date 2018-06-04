@@ -12,6 +12,8 @@
 #include "common/utils/common/defines.h"
 #include "common/utils/common/optional.h"
 #include "homework2/pointcloud.h"
+#include "svm_common.h"
+#include "svm_classify.h"
 #include <vector>
 
 class Perception {

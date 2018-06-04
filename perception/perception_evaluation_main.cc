@@ -56,8 +56,8 @@ void RunPerceptionEvaluation() {
   int num_frames = 0;
   for (const auto& config_file : config_files) {
     //std::cout << config_file << std::endl;
-    if (config_file != "/home/ycdfwzy/autonomous_driving/PublicCourse/perception/config/test.config")
-      continue;
+    //if (config_file != "/home/ycdfwzy/autonomous_driving/PublicCourse/perception/config/test.config")
+    //  continue;
     interface::perception::PerceptionEvaluationConfig config;
     CHECK(file::ReadTextFileToProto(config_file, &config))
         << "Failed to load config file: " << config_file;

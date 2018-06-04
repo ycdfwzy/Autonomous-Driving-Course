@@ -1,6 +1,24 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "svm_common",
+    srcs = ["svm_common.cc"],
+    hdrs = [
+        "svm_common.h",
+        "kernel.h",
+    ],
+)
+
+cc_library(
+    name = "svm_classify",
+    srcs = ["svm_classify.cc"],
+    hdrs = ["svm_classify.h"],
+    deps = [
+        ":svm_common",
+    ],
+)
+
+cc_library(
     name = "perception",
     srcs = ["perception.cc"],
     hdrs = ["perception.h"],
@@ -13,6 +31,8 @@ cc_library(
         "@opencv//:core",
         "@opencv//:highgui",
         "@eigen//:eigen",
+        ":svm_common",
+        ":svm_classify",
     ],
 )
 
@@ -37,6 +57,8 @@ cc_library(
         #"@opencv//:opencv"
         "@opencv//:core",
         "@opencv//:highgui",
+        ":svm_common",
+        ":svm_classify",
     ],
 )
 
@@ -61,6 +83,8 @@ cc_library(
         "@gflags//:gflags",
         "@glog//:glog",
         "@qt//:qt_widgets",
+        ":svm_common",
+        ":svm_classify",
     ],
 )
 

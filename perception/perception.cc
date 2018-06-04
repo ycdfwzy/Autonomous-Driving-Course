@@ -10,6 +10,8 @@ const int dy[4] = {0,0,1,-1};
 const double inf = (1e9);
 const double L = 6;  // in dm
 const int N = 60*10/((int)L);
+char modelfile[200] = "/home/ycdfwzy/autonomous_driving/PublicCourse/perception/model";
+MODEL* model = NULL;
 using std::vector;
 
 inline double sqr(double x) { return x*x; }
@@ -189,7 +191,7 @@ void Obstacle_Clustering(int ** isobs){
         }
       }
     }
-  std::cout << cnt << std::endl;
+  //std::cout << cnt << std::endl;
 }
 
 void add_object_points(interface::perception::PerceptionObstacle* obstacle,
@@ -223,7 +225,7 @@ void add_object_points(interface::perception::PerceptionObstacle* obstacle,
   }
 }
 
-void calc_feature_vector(interface::perception::PerceptionObstacle* obstacle,
+std::string calc_feature_vector(interface::perception::PerceptionObstacle* obstacle,
                          const Eigen::Vector3d& origin_point,
                          double angle, double x_min, double x_max, double y_min, double y_max)
 {
@@ -388,6 +390,7 @@ void calc_feature_vector(interface::perception::PerceptionObstacle* obstacle,
   feature.push_back(beta);
   //output
 
+  /*
   std::ofstream out("/home/ycdfwzy/Desktop/feature.txt", std::ios::app);
   if (out.is_open()){
     
@@ -412,10 +415,33 @@ void calc_feature_vector(interface::perception::PerceptionObstacle* obstacle,
     out << std::endl;
     out.close();
   }
+  */
+  std::string ret; ret.clear();
+  ret.append("1 ");
+  int totN = feature.size();
+  p = 0;
+  for (int i = 0; i < totN; ++i){
+    p += sqr(feature[i]);
+  }
+  p = std::sqrt(p);
+  for (int i = 0; i < totN; ++i){
+    feature[i] /= p;
+    //out << i << ":" << feature[i] << " ";
+    ret.append(std::to_string(i));
+    ret.append(":");
+    ret.append(std::to_string(feature[i]));
+    ret.append(" ");
+  }
+  return ret;
 }
 
 interface::perception::PerceptionObstacles Perception::RunPerception(
     const PointCloud& pointcloud, const utils::Optional<cv::Mat>& image) {
+
+  if (model == NULL){
+    model = read_model(modelfile);
+  }
+
   interface::perception::PerceptionObstacles perception_result;
 
   PointCloud pc(pointcloud);
@@ -485,7 +511,7 @@ interface::perception::PerceptionObstacles Perception::RunPerception(
         get_rect(que, r, angle, x_min, x_max, y_min, y_max, z_min, z_max, minh, maxh);
 
         auto* obstacle = perception_result.add_obstacle();
-        obstacle->set_type(interface::perception::ObjectType::CAR);
+        //obstacle->set_type(interface::perception::ObjectType::CAR);
         add_polygon_point(obstacle, x_min, y_min, z_min, -angle, origin_point);
         add_polygon_point(obstacle, x_min, y_max, z_min, -angle, origin_point);
         add_polygon_point(obstacle, x_max, y_max, z_min, -angle, origin_point);
@@ -494,11 +520,20 @@ interface::perception::PerceptionObstacles Perception::RunPerception(
         obstacle->set_id("car"+std::to_string(cnt));
 
         add_object_points(obstacle, que, r, block, origin_point);
-        calc_feature_vector(obstacle, origin_point, angle, x_min, x_max, y_min, y_max);
+        std::string feature = 
+           calc_feature_vector(obstacle, origin_point, angle, x_min, x_max, y_min, y_max);
+        char* line = new char[feature.length()+1];
+        memcpy(line, feature.c_str(), sizeof(char) * feature.length());
+        line[feature.length()] = '\0';
+        if (Predict_CAR(line, model) == 1)
+          obstacle->set_type(interface::perception::ObjectType::CAR);
+        else
+          obstacle->set_type(interface::perception::ObjectType::UNKNOWN_TYPE);
+        delete[] line;
       }
     }
   }
-  std::cout << cnt << std::endl;
+  //std::cout << cnt << std::endl;
   /*--------------------------------------------*/
 
   /*-----------------free space-----------------*/
