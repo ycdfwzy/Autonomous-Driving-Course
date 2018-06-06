@@ -11,7 +11,7 @@
 #include "pnc/simulation/types.h"
 #include "pnc/utils/vehicle.h"
 
-constexpr int kNumPedestrianAgents = 50;
+constexpr int kNumPedestrianAgents = 30;
 constexpr double kIterationTime = 0.01;
 constexpr double kPedestrianHeight = 1.8;
 
