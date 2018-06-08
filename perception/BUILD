@@ -31,6 +31,8 @@ cc_library(
         "@opencv//:core",
         "@opencv//:highgui",
         "@eigen//:eigen",
+        #"@boost//:geometry",
+        #"@boost//:algorithm",
         ":svm_common",
         ":svm_classify",
     ],
@@ -57,6 +59,8 @@ cc_library(
         #"@opencv//:opencv"
         "@opencv//:core",
         "@opencv//:highgui",
+        #"@boost//:geometry",
+        #"@boost//:algorithm",
         ":svm_common",
         ":svm_classify",
     ],
@@ -118,6 +122,8 @@ cc_binary(
         "@glog//:glog",
         "@opencv//:core",
         "@opencv//:highgui",
+        "@boost//:geometry",
+        "@boost//:algorithm",
         "@eigen//:eigen",
     ],
 )

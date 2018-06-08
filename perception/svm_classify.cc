@@ -96,7 +96,7 @@ int Predict_CAR(char* line, MODEL *model)
     }
 
     free(words);
-    printf("%lf\n", dist);
+    //printf("%lf\n", dist);
     if (dist > 4 && dist < 5) {
       //if(pred_format==0) { /* old weired output format */
       //    fprintf(predfl,"%.8g:+1 %.8g:-1\n",dist,-dist);

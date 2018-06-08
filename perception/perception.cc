@@ -20,6 +20,10 @@ inline void rotate(double x, double y , double angle, double &x_, double &y_){
   y_ = x*std::sin(angle)+y*std::cos(angle);
 }
 
+inline double distance(const Eigen::Vector3d& p1, const Eigen::Vector3d& p2){
+  return std::sqrt( sqr(p1(0)-p2(0)) + sqr(p1(1)-p2(1)) + sqr(p1(2)-p2(2)) );
+}
+
 bool no_neighbour(int x, int y, int** v){
   for (int i = std::max(0, x-3); i <= N && i <= x+3; ++i)
     for (int j = std::max(0, y-3); j <= N && j <= y+3; ++j)
@@ -225,6 +229,65 @@ void add_object_points(interface::perception::PerceptionObstacle* obstacle,
   }
 }
 
+void Lalonde_features(std::vector<Eigen::Vector3d>& points,
+                      std::vector<double>& L1,
+                      std::vector<double>& L2,
+                      std::vector<double>& L3){
+
+  if (points.empty()){
+    std::cout << "No neighbour" << std::endl;
+    return;
+  }
+  Eigen::Vector3d means(0, 0, 0);
+  for (auto& point: points)
+    means = means + point;
+  means = means / points.size();
+
+  Eigen::Matrix3d mat;
+  mat << 0, 0, 0, 0, 0, 0, 0, 0, 0;
+  for (auto& point: points){
+    Eigen::Vector3d p = point-means;
+    mat = mat+p*p.transpose();
+  }
+  mat = mat / points.size();
+
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigenSolver(mat);
+  if (eigenSolver.info() == Eigen::Success) {
+      double* val = new double[3];
+      val[0] = eigenSolver.eigenvalues()(0);
+      val[1] = eigenSolver.eigenvalues()(1);
+      val[2] = eigenSolver.eigenvalues()(2);
+      std::sort(val, val+3, [](const double &x, const double &y){return x>y;});
+      double sum = val[0]+val[0]-val[2];
+      L1.push_back(val[0]/sum);
+      L2.push_back((val[0]-val[1])/sum);
+      L3.push_back((val[1]-val[2])/sum);
+      delete[] val;
+  }
+}
+
+void divide_bins(std::vector<double>& feature, std::vector<double>& L, int bins = 4){
+  std::sort(L.begin(), L.end());
+  for (int i = 0, j = 0; i < bins; ++i){
+    int tot = 0;
+    while (j < L.size() && 4*L[j] < (i+1)){
+      tot++;
+      ++j;
+    }
+    feature.emplace_back(tot);
+  }
+}
+
+void noramlize(std::vector<double>& feature){
+  int N = feature.size();
+  double sqrL = 0;
+  for (int i = 0; i < N; ++i)
+    sqrL = sqr(feature[i]);
+  double L = std::sqrt(sqrL);
+  for (int i = 0; i < N; ++i)
+    feature[i] /= L;
+}
+
 std::string calc_feature_vector(interface::perception::PerceptionObstacle* obstacle,
                          const Eigen::Vector3d& origin_point,
                          double angle, double x_min, double x_max, double y_min, double y_max)
@@ -232,162 +295,239 @@ std::string calc_feature_vector(interface::perception::PerceptionObstacle* obsta
   std::vector<double> feature;
   feature.clear();
   int N = obstacle->object_points_size();
-  //f1
-  feature.push_back(N);
-  //f2
-  double t1=0, t2=0, t3=0, t4=0, t5=0, t6=0;
-  for (int i = 0; i < N; ++i){
-    Eigen::Vector3d point(obstacle->object_points(i).x(),
-                          obstacle->object_points(i).y(),
-                          obstacle->object_points(i).z());
-    point = point - origin_point;
-    t1 += sqr(point(0))+sqr(point(1));
-    t2 += sqr(point(0))+sqr(point(2));
-    t3 += sqr(point(1))+sqr(point(2));
-    t4 += -point(0)*point(1);
-    t5 += -point(0)*point(2);
-    t6 += -point(1)*point(2);
-  }
-  double p = std::sqrt( sqr(t1)+sqr(t2)+sqr(t3)+sqr(t4)+sqr(t5)+sqr(t6)+sqr(N) );
-  feature[0] /= p;
-  feature.push_back(t1/p);
-  feature.push_back(t2/p);
-  feature.push_back(t3/p);
-  feature.push_back(t4/p);
-  feature.push_back(t5/p);
-  feature.push_back(t6/p);
-  //f3
-  double x_mean = 0, y_mean = 0, z_mean = 0;
-  for (int i = 0; i < N; ++i){
-    Eigen::Vector3d point(obstacle->object_points(i).x(),
-                          obstacle->object_points(i).y(),
-                          obstacle->object_points(i).z());
-    point = point - origin_point;
-    x_mean += point(0);
-    y_mean += point(1);
-    z_mean += point(2);
-  }
-  x_mean /= N;
-  y_mean /= N;
-  z_mean /= N;
-  t1 = t2 = t3 = t4 = t5 = t6 = 0;
-  for (int i = 0; i < N; ++i){
-    Eigen::Vector3d point(obstacle->object_points(i).x(),
-                          obstacle->object_points(i).y(),
-                          obstacle->object_points(i).z());
-    point = point - origin_point;
-    t1 += (point(0) - x_mean) * (point(0) - x_mean) ;
-    t2 += (point(1) - y_mean) * (point(1) - y_mean) ;
-    t3 += (point(2) - z_mean) * (point(2) - z_mean) ;
-    t4 += (point(0) - x_mean) * (point(1) - y_mean) ;
-    t5 += (point(0) - x_mean) * (point(2) - z_mean) ;
-    t6 += (point(1) - y_mean) * (point(2) - z_mean) ;
-  }
-  t1 /= (N-1); t2 /= (N-1); t3 /= (N-1);
-  t4 /= (N-1); t5 /= (N-1); t6 /= (N-1);
-  feature.push_back(t1);
-  feature.push_back(t2);
-  feature.push_back(t3);
-  feature.push_back(t4);
-  feature.push_back(t5);
-  feature.push_back(t6);
-  //f4
-  Eigen::Matrix3d covmatrix;  
-  covmatrix << t1, t4, t5, t4, t2, t6, t5, t6, t3;  
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigenSolver(covmatrix);  
-  if (eigenSolver.info() == Eigen::Success) {
-    double* val = new double[3];
-    val[0] = eigenSolver.eigenvalues()(0);
-    val[1] = eigenSolver.eigenvalues()(1);
-    val[2] = eigenSolver.eigenvalues()(2);
-    std::sort(val, val+3, [](const double &x, const double &y){return x>y;});
-    double sum = val[0]+val[1]+val[2];
-    for (int i = 0; i < 3; ++i)
-      val[i] /= sum;
-    feature.push_back(val[0]);
-    feature.push_back(val[0]-val[1]);
-    feature.push_back(val[1]-val[2]);
-    delete[] val;
-  }
-  //f7
-  double* h_mean = new double[10];
-  int* tot = new int[10];
-  double z_min = inf, z_max = -inf;
-  for (int i = 0; i < 10; ++i)
-    h_mean[i] = 0, tot[i] = 0;
-  for (int i = 0; i < N; ++i){
-    Eigen::Vector3d point(obstacle->object_points(i).x(),
-                          obstacle->object_points(i).y(),
-                          obstacle->object_points(i).z());
-    point = point - origin_point;
-    z_min = z_min<point(2)?z_min:point(2);
-    z_max = z_max>point(2)?z_max:point(2);
-    
-    double x = point(0), y = point(1);
-    rotate(x, y, angle, point(0), point(1));
 
-    if (x_max-x_min > y_max-y_min){
-      int index = (int)((point(0)-x_min)/(x_max-x_min)*10);
-      if (index < 0) index = 0;
-      if (index >= 10) index = 9;
-      h_mean[index] += point(2);
-      tot[index]++;
-    } else
-    {
-      int index = (int)((point(1)-y_min)/(y_max-y_min)*10);
-      if (index < 0) index = 0;
-      if (index >= 10) index = 9;
-      h_mean[index] += point(2);
-      tot[index]++;
+  std::vector<Eigen::Vector3d> points;
+  for (int i = 0; i < N; ++i){
+    Eigen::Vector3d point(obstacle->object_points(i).x(),
+                          obstacle->object_points(i).y(),
+                          obstacle->object_points(i).z());
+    point = point - origin_point;
+    points.emplace_back(point);
+  }
+
+  /*-------------Lalonde features-------------*/
+  std::vector<double> L1, L2, L3;
+  for (int i = 0; i < N; ++i){
+    Eigen::Vector3d point(obstacle->object_points(i).x(),
+                          obstacle->object_points(i).y(),
+                          obstacle->object_points(i).z());
+    point = point - origin_point;
+
+    std::sort(points.begin(), points.end(), [&point](const Eigen::Vector3d& p1, const Eigen::Vector3d& p2){
+      //return p1.distance(point) < p2.distance(point);
+      return distance(p1, point) < distance(p2, point);
+    });
+
+    std::vector<Eigen::Vector3d> neighbours;
+    for (int j = 1; j < points.size() && j <= 20; ++j)
+      neighbours.push_back(points[j]);
+    Lalonde_features(neighbours, L1, L2, L3);
+  }
+  divide_bins(feature, L1);
+  divide_bins(feature, L2);
+  divide_bins(feature, L3);
+  /*-----------------------------------------*/
+
+  /*------------Anguelov features------------*/
+  std::vector<double> A1, A2, A3;
+  for (int i = 0; i < N; ++i){
+    Eigen::Vector3d point(obstacle->object_points(i).x(),
+                          obstacle->object_points(i).y(),
+                          obstacle->object_points(i).z());
+    point = point - origin_point;
+
+    double* tot = new double[3];
+    for (int j = 0; j < 3; ++j)
+      tot[j] = 0;
+    for (auto& p: points)
+    if (sqr(p(0)-point(0))+sqr(p(1)-point(1)) <= 0.01){
+      if (p(2) >= point(2)-2./2 && p(2) < point(2)-2./2+2./3){
+        ++tot[0];
+      } else
+      if (p(2) >= point(2)-2./2+2./3 && p(2) < point(2)+2./2-2./3){
+        ++tot[1];
+      } else
+      if(p(2) >= point(2)+2./2-2./3 && p(2) <= point(2)+2./2){
+        ++tot[2];
+      }
     }
+    double sum = tot[0]+tot[1]+tot[2];
+    A1.emplace_back(tot[0]/sum);
+    A2.emplace_back(tot[1]/sum);
+    A3.emplace_back(tot[2]/sum);
+    delete[] tot;
   }
-  for (int i = 0; i < 10; ++i){
-    if (tot[i] > 0)
-      h_mean[i] /= tot[i];
-    feature.push_back(h_mean[i]);
-  }
-  delete[] h_mean;
-  delete[] tot;
-  
-  //f8
-  if (x_max-x_min > y_max-y_min){
-    feature.push_back( (y_max-y_min)/(x_max-x_min) );
-    feature.push_back( (y_max-y_min)/(z_max-z_min) );
-  } else
-  {
-    feature.push_back( (x_max-x_min)/(y_max-y_min) );
-    feature.push_back( (x_max-x_min)/(z_max-z_min) );
-  }
-  double cx1 = (x_max+x_min)/2, cx2, cx;
-  double cy1 = (y_max+y_min)/2, cy2, cy;
-  rotate(cx1, cy1, -angle, cx, cy);
-  feature.push_back( std::sqrt( sqr(cx) + sqr(cy) ) );
-  feature.push_back(std::atan2(cy, cx));
+  divide_bins(feature, A1);
+  divide_bins(feature, A2);
+  divide_bins(feature, A3);
+  /*-----------------------------------------*/
 
-  if (x_max-x_min > y_max-y_min){
-    cx = x_min; cy = y_min;
-    rotate(cx, cy, -angle, cx1, cy1);
-    cx = x_max; cy = y_min;
-    rotate(cx, cy, -angle, cx2, cy2);
-  } else
-  {
-    cx = x_min; cy = y_min;
-    rotate(cx, cy, -angle, cx1, cy1);
-    cx = x_min; cy = y_max;
-    rotate(cx, cy, -angle, cx2, cy2);
+  std::string ret; ret.clear();
+  ret.append("1 ");
+  
+  for (int i = 0; i < feature.size(); ++i){
+    ret.append(std::to_string(i));
+    ret.append(":");
+    ret.append(std::to_string(feature[i]));
+    ret.append(" ");
   }
-  double beta = 0;
-  if (std::fabs(cx1-cx2) > 10*std::fabs(cy1-cy2)){
-    beta = std::atan( (cy1-cy2) / (cx1-cx2) );
-    if (beta < 0){
-      beta = -CV_PI - beta;
-    } else
-      beta = CV_PI - beta;
-  } else
-  {
-    beta = std::atan( (cx1-cx2) / (cy1-cy2) );
-  }
-  feature.push_back(beta);
+  std::cout << ret << std::endl;
+  // //f1
+  // feature.push_back(N);
+  // //f2
+  // double t1=0, t2=0, t3=0, t4=0, t5=0, t6=0;
+  // for (int i = 0; i < N; ++i){
+  //   Eigen::Vector3d point(obstacle->object_points(i).x(),
+  //                         obstacle->object_points(i).y(),
+  //                         obstacle->object_points(i).z());
+  //   point = point - origin_point;
+  //   t1 += sqr(point(0))+sqr(point(1));
+  //   t2 += sqr(point(0))+sqr(point(2));
+  //   t3 += sqr(point(1))+sqr(point(2));
+  //   t4 += -point(0)*point(1);
+  //   t5 += -point(0)*point(2);
+  //   t6 += -point(1)*point(2);
+  // }
+  // double p = std::sqrt( sqr(t1)+sqr(t2)+sqr(t3)+sqr(t4)+sqr(t5)+sqr(t6)+sqr(N) );
+  // feature[0] /= p;
+  // feature.push_back(t1/p);
+  // feature.push_back(t2/p);
+  // feature.push_back(t3/p);
+  // feature.push_back(t4/p);
+  // feature.push_back(t5/p);
+  // feature.push_back(t6/p);
+  // //f3
+  // double x_mean = 0, y_mean = 0, z_mean = 0;
+  // for (int i = 0; i < N; ++i){
+  //   Eigen::Vector3d point(obstacle->object_points(i).x(),
+  //                         obstacle->object_points(i).y(),
+  //                         obstacle->object_points(i).z());
+  //   point = point - origin_point;
+  //   x_mean += point(0);
+  //   y_mean += point(1);
+  //   z_mean += point(2);
+  // }
+  // x_mean /= N;
+  // y_mean /= N;
+  // z_mean /= N;
+  // t1 = t2 = t3 = t4 = t5 = t6 = 0;
+  // for (int i = 0; i < N; ++i){
+  //   Eigen::Vector3d point(obstacle->object_points(i).x(),
+  //                         obstacle->object_points(i).y(),
+  //                         obstacle->object_points(i).z());
+  //   point = point - origin_point;
+  //   t1 += (point(0) - x_mean) * (point(0) - x_mean) ;
+  //   t2 += (point(1) - y_mean) * (point(1) - y_mean) ;
+  //   t3 += (point(2) - z_mean) * (point(2) - z_mean) ;
+  //   t4 += (point(0) - x_mean) * (point(1) - y_mean) ;
+  //   t5 += (point(0) - x_mean) * (point(2) - z_mean) ;
+  //   t6 += (point(1) - y_mean) * (point(2) - z_mean) ;
+  // }
+  // t1 /= (N-1); t2 /= (N-1); t3 /= (N-1);
+  // t4 /= (N-1); t5 /= (N-1); t6 /= (N-1);
+  // feature.push_back(t1);
+  // feature.push_back(t2);
+  // feature.push_back(t3);
+  // feature.push_back(t4);
+  // feature.push_back(t5);
+  // feature.push_back(t6);
+  // //f4
+  // Eigen::Matrix3d covmatrix;  
+  // covmatrix << t1, t4, t5, t4, t2, t6, t5, t6, t3;  
+  // Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigenSolver(covmatrix);  
+  // if (eigenSolver.info() == Eigen::Success) {
+  //   double* val = new double[3];
+  //   val[0] = eigenSolver.eigenvalues()(0);
+  //   val[1] = eigenSolver.eigenvalues()(1);
+  //   val[2] = eigenSolver.eigenvalues()(2);
+  //   std::sort(val, val+3, [](const double &x, const double &y){return x>y;});
+  //   double sum = val[0]+val[1]+val[2];
+  //   for (int i = 0; i < 3; ++i)
+  //     val[i] /= sum;
+  //   feature.push_back(val[0]);
+  //   feature.push_back(val[0]-val[1]);
+  //   feature.push_back(val[1]-val[2]);
+  //   delete[] val;
+  // }
+  // //f7
+  // double* h_mean = new double[10];
+  // int* tot = new int[10];
+  // double z_min = inf, z_max = -inf;
+  // for (int i = 0; i < 10; ++i)
+  //   h_mean[i] = 0, tot[i] = 0;
+  // for (int i = 0; i < N; ++i){
+  //   Eigen::Vector3d point(obstacle->object_points(i).x(),
+  //                         obstacle->object_points(i).y(),
+  //                         obstacle->object_points(i).z());
+  //   point = point - origin_point;
+  //   z_min = z_min<point(2)?z_min:point(2);
+  //   z_max = z_max>point(2)?z_max:point(2);
+    
+  //   double x = point(0), y = point(1);
+  //   rotate(x, y, angle, point(0), point(1));
+
+  //   if (x_max-x_min > y_max-y_min){
+  //     int index = (int)((point(0)-x_min)/(x_max-x_min)*10);
+  //     if (index < 0) index = 0;
+  //     if (index >= 10) index = 9;
+  //     h_mean[index] += point(2);
+  //     tot[index]++;
+  //   } else
+  //   {
+  //     int index = (int)((point(1)-y_min)/(y_max-y_min)*10);
+  //     if (index < 0) index = 0;
+  //     if (index >= 10) index = 9;
+  //     h_mean[index] += point(2);
+  //     tot[index]++;
+  //   }
+  // }
+  // for (int i = 0; i < 10; ++i){
+  //   if (tot[i] > 0)
+  //     h_mean[i] /= tot[i];
+  //   feature.push_back(h_mean[i]);
+  // }
+  // delete[] h_mean;
+  // delete[] tot;
+  
+  // //f8
+  // if (x_max-x_min > y_max-y_min){
+  //   feature.push_back( (y_max-y_min)/(x_max-x_min) );
+  //   feature.push_back( (y_max-y_min)/(z_max-z_min) );
+  // } else
+  // {
+  //   feature.push_back( (x_max-x_min)/(y_max-y_min) );
+  //   feature.push_back( (x_max-x_min)/(z_max-z_min) );
+  // }
+  // double cx1 = (x_max+x_min)/2, cx2, cx;
+  // double cy1 = (y_max+y_min)/2, cy2, cy;
+  // rotate(cx1, cy1, -angle, cx, cy);
+  // feature.push_back( std::sqrt( sqr(cx) + sqr(cy) ) );
+  // feature.push_back(std::atan2(cy, cx));
+
+  // if (x_max-x_min > y_max-y_min){
+  //   cx = x_min; cy = y_min;
+  //   rotate(cx, cy, -angle, cx1, cy1);
+  //   cx = x_max; cy = y_min;
+  //   rotate(cx, cy, -angle, cx2, cy2);
+  // } else
+  // {
+  //   cx = x_min; cy = y_min;
+  //   rotate(cx, cy, -angle, cx1, cy1);
+  //   cx = x_min; cy = y_max;
+  //   rotate(cx, cy, -angle, cx2, cy2);
+  // }
+  // double beta = 0;
+  // if (std::fabs(cx1-cx2) > 10*std::fabs(cy1-cy2)){
+  //   beta = std::atan( (cy1-cy2) / (cx1-cx2) );
+  //   if (beta < 0){
+  //     beta = -CV_PI - beta;
+  //   } else
+  //     beta = CV_PI - beta;
+  // } else
+  // {
+  //   beta = std::atan( (cx1-cx2) / (cy1-cy2) );
+  // }
+  // feature.push_back(beta);
   //output
 
   /*
@@ -416,22 +556,7 @@ std::string calc_feature_vector(interface::perception::PerceptionObstacle* obsta
     out.close();
   }
   */
-  std::string ret; ret.clear();
-  ret.append("1 ");
-  int totN = feature.size();
-  p = 0;
-  for (int i = 0; i < totN; ++i){
-    p += sqr(feature[i]);
-  }
-  p = std::sqrt(p);
-  for (int i = 0; i < totN; ++i){
-    feature[i] /= p;
-    //out << i << ":" << feature[i] << " ";
-    ret.append(std::to_string(i));
-    ret.append(":");
-    ret.append(std::to_string(feature[i]));
-    ret.append(" ");
-  }
+
   return ret;
 }
 
@@ -520,16 +645,16 @@ interface::perception::PerceptionObstacles Perception::RunPerception(
         obstacle->set_id("car"+std::to_string(cnt));
 
         add_object_points(obstacle, que, r, block, origin_point);
-        std::string feature = 
-           calc_feature_vector(obstacle, origin_point, angle, x_min, x_max, y_min, y_max);
-        char* line = new char[feature.length()+1];
-        memcpy(line, feature.c_str(), sizeof(char) * feature.length());
-        line[feature.length()] = '\0';
-        if (Predict_CAR(line, model) == 1)
+        //std::string feature = 
+        //   calc_feature_vector(obstacle, origin_point, angle, x_min, x_max, y_min, y_max);
+        //char* line = new char[feature.length()+1];
+        //memcpy(line, feature.c_str(), sizeof(char) * feature.length());
+        //line[feature.length()] = '\0';
+        //if (Predict_CAR(line, model) == 1)
           obstacle->set_type(interface::perception::ObjectType::CAR);
-        else
-          obstacle->set_type(interface::perception::ObjectType::UNKNOWN_TYPE);
-        delete[] line;
+        //else
+        //  obstacle->set_type(interface::perception::ObjectType::UNKNOWN_TYPE);
+        //delete[] line;
       }
     }
   }
